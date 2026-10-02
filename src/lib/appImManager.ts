@@ -1768,14 +1768,17 @@ export class AppImManager extends EventListenerBase<{
           !chat?.input?.editMsgId
         ) {
           const forReply = e.metaKey || e.ctrlKey;
-          if(!forReply && !chat?.input?.isInputEmpty()) {
+          // Plain ArrowUp/ArrowDown must never start editing the last message: leave them to
+          // the editor (caret movement) or to the focused element. Only Ctrl/Meta+Arrow
+          // (reply to previous/next message) continues below.
+          if(!forReply) {
             return;
           }
 
           const up = key === 'ArrowUp';
           const {replyToMsgId} = this.chat.input;
           const {peerId, threadId} = this.chat;
-          if((!forReply && !up) || (forReply && !up && !replyToMsgId)) {
+          if(!up && !replyToMsgId) {
             return;
           }
 
@@ -1820,8 +1823,6 @@ export class AppImManager extends EventListenerBase<{
                   lastMsgPeerId: message.peerId
                 });
               }
-            } else {
-              chat.input.initMessageEditing(message.mid);
             }
           });
         }

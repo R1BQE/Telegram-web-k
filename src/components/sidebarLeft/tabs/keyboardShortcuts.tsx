@@ -156,11 +156,6 @@ const MessagesSection = () => (
 const ChatSection = () => (
   <Section name="KeyboardShortcuts.Section.Chat">
     <ShortcutRow
-      action="KeyboardShortcuts.Action.EditLast"
-      hint="KeyboardShortcuts.Hint.WhenInputEmpty"
-      keys={<KeyCombo keys={['up']} />}
-    />
-    <ShortcutRow
       action="KeyboardShortcuts.Action.ReplyToPrevious"
       keys={<KeyCombo keys={['ctrl', 'up']} />}
     />

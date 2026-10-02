@@ -21,8 +21,8 @@ it('does not mistake the scrollable message editor for a reading region', () => 
   editor.className = 'input-message-input scrollable';
   editor.tabIndex = 0;
   Object.defineProperty(editor, 'isContentEditable', {value: true});
-  // The chat shortcut handler must still receive ArrowUp to edit the previous
-  // message; that handler separately protects text inputs outside the composer.
+  // The chat shortcut handler must still receive arrow keys so Ctrl/Meta+ArrowUp can
+  // reply to the previous message; a plain ArrowUp is left to the editor by that handler.
   expect(shouldPreserveKeyboardFocus(keyOn(editor, 'ArrowUp'))).toBe(false);
   expect(shouldPreserveKeyboardFocus(keyOn(editor, 'Tab'))).toBe(true);
 });
