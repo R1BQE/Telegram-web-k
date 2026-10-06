@@ -67,6 +67,7 @@ import groupCallsController from '@lib/calls/groupCallsController';
 import callsController from '@lib/calls/callsController';
 import conferenceInvitesController from '@lib/calls/conferenceInvitesController';
 import cancelEvent from '@helpers/dom/cancelEvent';
+import attachChatListFocusNavigation from '@helpers/dom/attachChatListFocusNavigation';
 import noop from '@helpers/noop';
 import pause from '@helpers/schedulers/pause';
 import apiManagerProxy from '@lib/apiManagerProxy';
@@ -1476,6 +1477,10 @@ export class AppDialogsManager {
     const xd = this.xds[filter.id] = new AutonomousDialogList({filterId: filter.id, appDialogsManager: this});
     const {scrollable, list} = xd.generateScrollable(filter);
     this.setListClickListener({list, onFound: null, withContext: true, withArchiveContext: filter.id === FOLDER_ID_ALL});
+
+    // * ArrowUp/ArrowDown move focus between the rows. Only the lists made here (the folders and the
+    // * archive) get it: search results, pickers and forum tabs build their own lists and are left alone
+    attachChatListFocusNavigation(list);
 
     return {ul: list, xd, scrollable};
   }
