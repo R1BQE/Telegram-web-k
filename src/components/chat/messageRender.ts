@@ -360,6 +360,9 @@ export namespace MessageRender {
       args.push(repeatSpan);
     }
 
+    // * the node the bubble's accessible name points at
+    time?.classList.add('time-value');
+
     if(time) {
       args.push(time);
     }
@@ -409,6 +412,7 @@ export namespace MessageRender {
       clonedArgs[clonedArgs.length - 1] = editedPrimary ? // clone time
         makeEditedTime(date, new Date(editDate * 1000)) :
         makeTime(date, includeDate);
+      (clonedArgs[clonedArgs.length - 1] as HTMLElement).classList.add('time-value');
     }
     inner.append(...clonedArgs);
 

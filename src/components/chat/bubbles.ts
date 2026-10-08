@@ -1,5 +1,7 @@
 import buttonKeyDown from '@helpers/solid/buttonKeyDown';
 import makeMediaPreviewsAccessible from '@helpers/dom/mediaPreviewAccessibility';
+import {BUBBLE_MESSAGE_TEXT_CLASS, hideDuplicateDateBubble, makeDateBubbleAccessible, updateMessageBubbleAccessibleName, updateServiceBubbleAccessibleName} from '@helpers/dom/bubbleAccessibleName';
+import attachMessageListFocusNavigation, {type MessageListFocusNavigation} from '@helpers/dom/attachMessageListFocusNavigation';
 import type {AppImManager, ChatSavedPosition, ChatSetInnerPeerOptions, ChatSetPeerOptions} from '@lib/appImManager';
 import type {HistoryResult, MyEphemeralMessage, MyMessage} from '@appManagers/appMessagesManager';
 import type {MyDocument} from '@appManagers/appDocsManager';
@@ -818,6 +820,7 @@ export default class ChatBubbles {
   private pendingEphemeralHistory = 0;
 
   private previousStickyDate: HTMLElement;
+  private messageFocusNavigation: MessageListFocusNavigation;
 
   private hoverBubble: HTMLElement;
   private hoverReaction: HTMLElement;
@@ -4797,6 +4800,14 @@ export default class ChatBubbles {
     this.scrollable.container.tabIndex = 0;
     this.scrollable.container.setAttribute('role', 'region');
     this.scrollable.container.setAttribute('aria-label', I18n.format('AccDescr.MessageHistory', true));
+    this.messageFocusNavigation = attachMessageListFocusNavigation(this.scrollable.container, {
+      // * the loader is what scrolling to the edge would trigger; nothing to wait for once the end is loaded
+      loadMore: (up) => {
+        if(this.scrollable.loadedAll[up ? 'top' : 'bottom']) return false;
+        this.loadMoreHistory(up);
+        return true;
+      }
+    });
     this.setLoaded('top', false, false);
     this.setLoaded('bottom', false, false);
 
@@ -5597,6 +5608,9 @@ export default class ChatBubbles {
     // bubble.classList.add('is-sticky');
     const fakeBubble = this.createDateBubble(timestamp, date);
     fakeBubble.classList.add('is-fake');
+    // * the date is one focus stop named by its text; its twin repeats the text, so it is hidden
+    makeDateBubbleAccessible(bubble);
+    hideDuplicateDateBubble(fakeBubble);
 
     const container = document.createElement('section');
     container.className = 'bubbles-date-group';
@@ -5640,6 +5654,8 @@ export default class ChatBubbles {
   }
 
   private destroyScrollable() {
+    this.messageFocusNavigation?.detach();
+    this.messageFocusNavigation = undefined;
     this.scrollable.destroy();
   }
 
@@ -5679,6 +5695,9 @@ export default class ChatBubbles {
 
   public cleanup(bubblesToo = false) {
     this.log('cleanup');
+
+    // a pending wait for history belongs to the chat that is going away
+    this.messageFocusNavigation?.cancel();
 
     // Content is about to be wiped (peer switch / screen teardown) — end every read-metrics phase.
     this.readMetricsTracker?.finalizeAll();
@@ -7283,8 +7302,9 @@ export default class ChatBubbles {
       // const groupedId = (message as Message.message).grouped_id;
       newBubble = document.createElement('div');
       if(isMessage(message)) {
+        // * a plain focus stop: the name comes from `aria-labelledby` once the bubble is rendered
+        // * (see `makeBubbleAccessible`); a message is not an article, so no role
         newBubble.tabIndex = 0;
-        newBubble.setAttribute('role', 'article');
       }
       newBubble.middlewareHelper = middlewareHelper;
       newBubble.dataset.mid = '' + (isMessage(message) ? message.mid : message.id);
@@ -7367,6 +7387,7 @@ export default class ChatBubbles {
         // Both renderers use the delegated media click path. Expose only the
         // innermost preview, leaving embedded players and their own controls alone.
         makeMediaPreviewsAccessible(bubble);
+        if(isMessage(message)) this.makeBubbleAccessible(bubble, message as Message.message | Message.messageService);
         return {...r, updatePosition, canAnimateLadder} as typeof result;
       });
 
@@ -7400,6 +7421,23 @@ export default class ChatBubbles {
     this.renderingMessages.delete(fullMid);
     this.reconcilePendingStreamedMessageUpdate(fullMid);
     return result;
+  }
+
+  /**
+   * Names an item of the history for assistive technology: a message by its sender, text,
+   * `edited` mark and time; a service message by its text. Runs once the bubble is rendered.
+   */
+  private makeBubbleAccessible(bubble: HTMLElement, message: Message.message | Message.messageService) {
+    if(bubble.classList.contains('service')) {
+      updateServiceBubbleAccessibleName(bubble);
+      return;
+    }
+
+    updateMessageBubbleAccessibleName(bubble, {
+      outgoingLabel: I18n.format('FromYou', true),
+      // * incoming bubbles without a visible name (private chat, name hidden in a run of messages)
+      createSenderName: () => message.fromId ? new PeerTitle({peerId: message.fromId}).element : undefined
+    });
   }
 
   private setBubbleSendingStatus(bubble: HTMLElement, status?: 'sending' | 'error' | 'sent' | 'read', first?: boolean) {
@@ -7684,6 +7722,8 @@ export default class ChatBubbles {
       previous.setAttribute(attribute.name, attribute.value);
     }
     previous.replaceChildren(...Array.from(next.childNodes));
+    // * the nodes the bubble's name points at (edited, time) were just replaced
+    updateMessageBubbleAccessibleName(bubble);
     previous.classList.toggle(
       'is-block',
       I18n.getIsRTL() ? !endsWithRTL(message.message || '') : isRTL(message.message || '', true)
@@ -8933,6 +8973,8 @@ export default class ChatBubbles {
       context.messageMedia?._ !== 'messageMediaToDo';
     if(canUseSolidMessageBody) {
       const element = document.createElement('div');
+      // * the stable node of the message text, referenced by the bubble's `aria-labelledby`
+      element.classList.add(BUBBLE_MESSAGE_TEXT_CLASS);
       solidMessageBodyEntry = mountSolidMessageBody(
         element,
         messageWithMessage,
